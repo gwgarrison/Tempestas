@@ -1,0 +1,280 @@
+//
+//  WeatherDetailView.swift
+//  Tempestas
+//
+//  Created by Gary Garrison on 12/28/25.
+//
+
+import SwiftUI
+
+struct WeatherDetailView: View {
+    let location: WeatherLocation
+    @ObservedObject var viewModel: WeatherViewModel
+    @State private var preferences = StorageService.shared.loadPreferences()
+    
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                // Hero Section
+                if let weather = viewModel.currentWeather {
+                    WeatherHeroSection(weather: weather, preferences: preferences)
+                }
+                
+                // Hourly Forecast
+                if !viewModel.hourlyForecast.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Today's Forecast")
+                            .font(.headline)
+                            .padding(.horizontal)
+                        
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 16) {
+                                ForEach(viewModel.hourlyForecast) { forecast in
+                                    HourlyForecastCard(forecast: forecast, preferences: preferences)
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
+                    }
+                }
+                
+                // 3-Day Forecast
+                if !viewModel.dailyForecast.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("3-Day Forecast")
+                            .font(.headline)
+                            .padding(.horizontal)
+                        
+                        ForEach(viewModel.dailyForecast) { forecast in
+                            DailyForecastCard(forecast: forecast, preferences: preferences)
+                        }
+                    }
+                }
+                
+                // Weather Details
+                if let weather = viewModel.currentWeather {
+                    WeatherDetailsSection(weather: weather, preferences: preferences)
+                }
+                
+                // Last Updated
+                if let lastUpdated = viewModel.lastUpdated {
+                    Text("Updated \(lastUpdated.relativeTime())")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(.vertical)
+        }
+        .navigationTitle(location.name)
+        .navigationBarTitleDisplayMode(.inline)
+        .refreshable {
+            await viewModel.fetchWeatherData(for: location)
+        }
+        .task {
+            await viewModel.fetchWeatherData(for: location)
+        }
+    }
+}
+
+// MARK: - Hero Section
+
+struct WeatherHeroSection: View {
+    let weather: CurrentWeather
+    let preferences: UserPreferences
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: weather.conditionCode)
+                .font(.system(size: 80))
+                .foregroundColor(.blue)
+            
+            Text(weather.temperature.formatted(unit: preferences.temperatureUnit))
+                .font(.system(size: 64, weight: .light))
+            
+            Text(weather.condition)
+                .font(.title2)
+                .foregroundColor(.secondary)
+            
+            HStack(spacing: 16) {
+                Text("H: \(weather.highTemp.formatted(unit: preferences.temperatureUnit))")
+                Text("L: \(weather.lowTemp.formatted(unit: preferences.temperatureUnit))")
+            }
+            .font(.subheadline)
+            .foregroundColor(.secondary)
+            
+            Text("Feels like \(weather.feelsLike.formatted(unit: preferences.temperatureUnit))")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(16)
+        .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 2)
+        .padding(.horizontal)
+    }
+}
+
+// MARK: - Hourly Forecast Card
+
+struct HourlyForecastCard: View {
+    let forecast: HourlyForecast
+    let preferences: UserPreferences
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            Text(forecast.time.formatted(timeFormat: preferences.timeFormat))
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
+            Image(systemName: forecast.conditionCode)
+                .font(.title2)
+                .foregroundColor(.blue)
+            
+            Text(forecast.temperature.formatted(unit: preferences.temperatureUnit))
+                .font(.subheadline)
+                .fontWeight(.semibold)
+            
+            if forecast.precipitationChance > 0 {
+                Text("\(forecast.precipitationChance)%")
+                    .font(.caption2)
+                    .foregroundColor(.blue)
+            }
+        }
+        .frame(width: 60)
+        .padding(.vertical, 8)
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+    }
+}
+
+// MARK: - Daily Forecast Card
+
+struct DailyForecastCard: View {
+    let forecast: DailyForecast
+    let preferences: UserPreferences
+    
+    var body: some View {
+        HStack {
+            Text(forecast.date.dayName())
+                .font(.subheadline)
+                .frame(width: 100, alignment: .leading)
+            
+            Image(systemName: forecast.conditionCode)
+                .font(.title3)
+                .foregroundColor(.blue)
+            
+            Spacer()
+            
+            if forecast.precipitationChance > 0 {
+                Text("\(forecast.precipitationChance)%")
+                    .font(.caption)
+                    .foregroundColor(.blue)
+            }
+            
+            HStack(spacing: 8) {
+                Text("H: \(forecast.highTemp.formatted(unit: preferences.temperatureUnit))")
+                Text("L: \(forecast.lowTemp.formatted(unit: preferences.temperatureUnit))")
+            }
+            .font(.subheadline)
+        }
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
+        .padding(.horizontal)
+    }
+}
+
+// MARK: - Weather Details Section
+
+struct WeatherDetailsSection: View {
+    let weather: CurrentWeather
+    let preferences: UserPreferences
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Details")
+                .font(.headline)
+                .padding(.horizontal)
+            
+            VStack(spacing: 0) {
+                WeatherDetailRow(
+                    icon: "drop.fill",
+                    title: "Humidity",
+                    value: "\(weather.humidity)%"
+                )
+                
+                Divider()
+                
+                WeatherDetailRow(
+                    icon: "wind",
+                    title: "Wind",
+                    value: "\(weather.windSpeed.formatted(windUnit: preferences.windSpeedUnit)) \(weather.windDirection.toCardinalDirection())"
+                )
+                
+                Divider()
+                
+                WeatherDetailRow(
+                    icon: "sun.max.fill",
+                    title: "UV Index",
+                    value: "\(weather.uvIndex) (High)"
+                )
+                
+                Divider()
+                
+                WeatherDetailRow(
+                    icon: "sunrise.fill",
+                    title: "Sunrise",
+                    value: weather.sunrise.formatted(timeFormat: preferences.timeFormat)
+                )
+                
+                Divider()
+                
+                WeatherDetailRow(
+                    icon: "sunset.fill",
+                    title: "Sunset",
+                    value: weather.sunset.formatted(timeFormat: preferences.timeFormat)
+                )
+            }
+            .background(Color(.systemBackground))
+            .cornerRadius(12)
+            .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
+            .padding(.horizontal)
+        }
+    }
+}
+
+struct WeatherDetailRow: View {
+    let icon: String
+    let title: String
+    let value: String
+    
+    var body: some View {
+        HStack {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundColor(.blue)
+                .frame(width: 30)
+            
+            Text(title)
+                .font(.subheadline)
+            
+            Spacer()
+            
+            Text(value)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+        }
+        .padding()
+    }
+}
+
+#Preview {
+    NavigationStack {
+        WeatherDetailView(
+            location: WeatherLocation(name: "San Francisco", latitude: 37.7749, longitude: -122.4194),
+            viewModel: WeatherViewModel()
+        )
+    }
+}
