@@ -86,7 +86,104 @@ class WeatherService {
         let dayOfYear = calendar.ordinality(of: .day, in: .year, for: now)!
         print("📅 Day of year: \(dayOfYear)")
         
-        print("⚠️ Historical statistics API unavailable in this build environment. Returning nil.")
-        return nil
+        do {
+            // UNCOMMENT BELOW BLOCK if using Xcode 16+ / iOS 18 SDK
+            /*
+            let statistics = try await service.weather(for: clLocation, including: .daily)
+            
+            print("✅ Retrieved \(statistics.count) statistics entries")
+            
+            if let todayStats = statistics.first(where: { $0.day == dayOfYear }) {
+                print("✅ Found stats for today: H:\(todayStats.temperature.averageHighTemperature) L:\(todayStats.temperature.averageLowTemperature)")
+                return todayStats.temperature
+            } else {
+                print("⚠️ No statistics found for day \(dayOfYear)")
+                // Fallback debug: print first few available days
+                if let first = statistics.first {
+                    print("ℹ️ First available day: \(first.day)")
+                }
+                return nil
+            }
+           */
+            print("⚠️ Code commented out for build safety. Uncomment in WeatherService.swift to enable.")
+            return nil
+        } catch {
+            print("❌ Failed to fetch daily statistics: \(error)")
+            // Fallback for older SDKs or errors: return nil
+            return nil
+        }
+    }
+    
+    private struct OpenMeteoResponse: Codable {
+        let daily: DailyData
+    }
+    
+    private struct DailyData: Codable {
+        let time: [String]
+        let temperature_2m_max: [Double?]
+        let temperature_2m_min: [Double?]
+    }
+    
+    func fetchHistoricalAverages(for location: WeatherLocation) async -> DailyStatistics? {
+        // Calculate date range: Last 10 years
+        let calendar = Calendar.current
+        let today = Date()
+        guard let tenYearsAgo = calendar.date(byAdding: .year, value: -10, to: today),
+              let yesterday = calendar.date(byAdding: .day, value: -1, to: today) else {
+            return nil
+        }
+        
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        
+        let startDate = dateFormatter.string(from: tenYearsAgo)
+        let endDate = dateFormatter.string(from: yesterday)
+        
+        let urlString = "https://archive-api.open-meteo.com/v1/archive?latitude=\(location.latitude)&longitude=\(location.longitude)&start_date=\(startDate)&end_date=\(endDate)&daily=temperature_2m_max,temperature_2m_min&timezone=auto"
+        
+        guard let url = URL(string: urlString) else { return nil }
+        
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let response = try JSONDecoder().decode(OpenMeteoResponse.self, from: data)
+            
+            // Filter for matching Month/Day
+            let targetMonth = calendar.component(.month, from: today)
+            let targetDay = calendar.component(.day, from: today)
+            
+            var maxTemps: [Double] = []
+            var minTemps: [Double] = []
+            
+            for (index, dateString) in response.daily.time.enumerated() {
+                if let date = dateFormatter.date(from: dateString) {
+                    let month = calendar.component(.month, from: date)
+                    let day = calendar.component(.day, from: date)
+                    
+                    if month == targetMonth && day == targetDay {
+                        if index < response.daily.temperature_2m_max.count, let max = response.daily.temperature_2m_max[index] {
+                            maxTemps.append(max)
+                        }
+                        if index < response.daily.temperature_2m_min.count, let min = response.daily.temperature_2m_min[index] {
+                            minTemps.append(min)
+                        }
+                    }
+                }
+            }
+            
+            guard !maxTemps.isEmpty, !minTemps.isEmpty else { return nil }
+            
+            let avgMax = maxTemps.reduce(0, +) / Double(maxTemps.count)
+            let avgMin = minTemps.reduce(0, +) / Double(minTemps.count)
+            
+            // Open-Meteo returns Celsius
+            return DailyStatistics(
+                averageHighTemperature: Measurement(value: avgMax, unit: .celsius),
+                averageLowTemperature: Measurement(value: avgMin, unit: .celsius)
+            )
+            
+        } catch {
+            print("❌ OpenMeteo fetch failed: \(error)")
+            return nil
+        }
     }
 }

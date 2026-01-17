@@ -6,10 +6,10 @@
 //
 
 import SwiftUI
-import WeatherKit
+// import WeatherKit
 
 struct HistoricalComparisonsView: View {
-    let statistics: DayTemperatureStatistics
+    let statistics: DailyStatistics
     let preferences: UserPreferences
     
     var body: some View {

@@ -19,7 +19,7 @@ class WeatherViewModel: ObservableObject {
     @Published var currentWeather: CurrentWeather?
     @Published var hourlyForecast: [HourlyForecast] = []
     @Published var dailyForecast: [DailyForecast] = []
-    @Published var dayTemperatureStatistics: DayTemperatureStatistics?
+    @Published var dayTemperatureStatistics: DailyStatistics?
     @Published var savedLocationsWeather: [UUID: CurrentWeather] = [:]
     
     @Published var isLoading = false
@@ -33,40 +33,16 @@ class WeatherViewModel: ObservableObject {
     private let cacheService = CacheService.shared
     private let storageService = StorageService.shared
     
-    private var cancellables = Set<AnyCancellable>()
-    
     // MARK: - Initialization
     
     init(runSetup: Bool = true) {
         loadSavedLocations()
         if runSetup {
-            setupLocationBindings()
             Task {
                 await setupLocation()
                 await fetchSavedLocationsWeather()
             }
         }
-    }
-    
-    private func setupLocationBindings() {
-        locationService.$currentLocation
-            .compactMap { $0 }
-            .debounce(for: .seconds(0.5), scheduler: DispatchQueue.main)
-            .sink { [weak self] location in
-                Task {
-                    await self?.updateCurrentLocation(from: location)
-                }
-            }
-            .store(in: &cancellables)
-            
-        locationService.$authorizationStatus
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] status in
-                if status == .denied || status == .restricted {
-                    self?.errorMessage = "Location permission denied. Please enable it in Settings."
-                }
-            }
-            .store(in: &cancellables)
     }
     
     // MARK: - Location Setup
@@ -75,24 +51,40 @@ class WeatherViewModel: ObservableObject {
         print("🔍 Starting location setup...")
         locationService.requestLocationPermission()
         
-        // If already authorized, request location immediately
+        // Wait a moment for permission
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        
+        print("📍 Location authorization status: \(locationService.authorizationStatus.rawValue)")
+        
         if locationService.authorizationStatus == .authorizedWhenInUse ||
            locationService.authorizationStatus == .authorizedAlways {
-            print("📍 already authorized, requesting location...")
             locationService.requestLocation()
+            
+            // Wait for location
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            
+            if let location = locationService.currentLocation {
+                print("✅ Got location: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+                await updateCurrentLocation(from: location)
+            } else {
+                print("⚠️ No location received, using default (San Francisco)")
+                // Fallback to a default location for testing
+                let defaultLocation = CLLocation(latitude: 37.7749, longitude: -122.4194)
+                await updateCurrentLocation(from: defaultLocation)
+            }
+        } else {
+            print("⚠️ Location permission not granted, using default location")
+            errorMessage = "Location permission denied. Using default location."
+            // Use default location
+            let defaultLocation = CLLocation(latitude: 37.7749, longitude: -122.4194)
+            await updateCurrentLocation(from: defaultLocation)
         }
     }
     
     func updateCurrentLocation(from clLocation: CLLocation) async {
         print("📍 Updating current location...")
-        
-        // Resolve city name
-        let cityName = await locationService.resolveCityName(for: clLocation)
-        let displayName = cityName ?? "Current Location"
-        print("📍 Resolved city name: \(displayName)")
-        
         let location = WeatherLocation(
-            name: displayName,
+            name: "Current Location",
             latitude: clLocation.coordinate.latitude,
             longitude: clLocation.coordinate.longitude,
             isCurrentLocation: true
@@ -104,29 +96,27 @@ class WeatherViewModel: ObservableObject {
     
     // MARK: - Weather Data Fetching
     
-    func fetchWeatherData(for location: WeatherLocation, ignoreCache: Bool = false) async {
-        print("🌤️ Fetching weather for: \(location.name) (ignoreCache: \(ignoreCache))")
+    func fetchWeatherData(for location: WeatherLocation) async {
+        print("🌤️ Fetching weather for: \(location.name)")
         isLoading = true
         errorMessage = nil
         
         let locationKey = "\(location.latitude),\(location.longitude)"
         
         // Try cache first
-        if !ignoreCache {
-            if let cached = cacheService.retrieve(forKey: "current_\(locationKey)", as: CurrentWeather.self) {
-                print("💾 Using cached current weather")
-                currentWeather = cached
-            }
-            
-            if let cached = cacheService.retrieve(forKey: "hourly_\(locationKey)", as: [HourlyForecast].self) {
-                print("💾 Using cached hourly forecast")
-                hourlyForecast = cached
-            }
-            
-            if let cached = cacheService.retrieve(forKey: "daily_\(locationKey)", as: [DailyForecast].self) {
-                print("💾 Using cached daily forecast")
-                dailyForecast = cached
-            }
+        if let cached = cacheService.retrieve(forKey: "current_\(locationKey)", as: CurrentWeather.self) {
+            print("💾 Using cached current weather")
+            currentWeather = cached
+        }
+        
+        if let cached = cacheService.retrieve(forKey: "hourly_\(locationKey)", as: [HourlyForecast].self) {
+            print("💾 Using cached hourly forecast")
+            hourlyForecast = cached
+        }
+        
+        if let cached = cacheService.retrieve(forKey: "daily_\(locationKey)", as: [DailyForecast].self) {
+            print("💾 Using cached daily forecast")
+            dailyForecast = cached
         }
         
         // Fetch fresh data
@@ -150,7 +140,7 @@ class WeatherViewModel: ObservableObject {
             cacheService.cache(daily, forKey: "daily_\(locationKey)", duration: CacheService.CacheDuration.dailyForecast)
             
             print("🌐 Fetching historical statistics...")
-            let stats = try await weatherService.fetchDayTemperatureStatistics(for: location)
+            let stats = await weatherService.fetchHistoricalAverages(for: location)
             if let stats = stats {
                 print("✅ Got historical statistics: \(stats.averageHighTemperature) / \(stats.averageLowTemperature)")
             } else {
@@ -173,22 +163,20 @@ class WeatherViewModel: ObservableObject {
     func refreshWeatherData() async {
         print("🔄 Refreshing weather data...")
         if let location = currentLocation {
-            await fetchWeatherData(for: location, ignoreCache: true)
+            await fetchWeatherData(for: location)
         }
-        await fetchSavedLocationsWeather(ignoreCache: true)
+        await fetchSavedLocationsWeather()
     }
     
-    func fetchSavedLocationsWeather(ignoreCache: Bool = false) async {
+    func fetchSavedLocationsWeather() async {
         print("📍 Fetching weather for \(savedLocations.count) saved locations...")
         for location in savedLocations {
             let locationKey = "\(location.latitude),\(location.longitude)"
             
             // Try cache first
-            if !ignoreCache {
-                if let cached = cacheService.retrieve(forKey: "current_\(locationKey)", as: CurrentWeather.self) {
-                    print("💾 Using cached weather for \(location.name)")
-                    savedLocationsWeather[location.id] = cached
-                }
+            if let cached = cacheService.retrieve(forKey: "current_\(locationKey)", as: CurrentWeather.self) {
+                print("💾 Using cached weather for \(location.name)")
+                savedLocationsWeather[location.id] = cached
             }
             
             // Fetch fresh data
