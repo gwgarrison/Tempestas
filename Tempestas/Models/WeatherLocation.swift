@@ -8,7 +8,7 @@
 import Foundation
 import CoreLocation
 
-struct WeatherLocation: Identifiable, Codable, Equatable {
+struct WeatherLocation: Identifiable, Codable, Equatable, Hashable {
     let id: UUID
     let name: String
     let latitude: Double

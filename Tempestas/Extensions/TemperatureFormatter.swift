@@ -9,15 +9,15 @@ import Foundation
 
 extension Double {
     func toFahrenheit() -> Double {
-        return self
+        return (self * 9 / 5) + 32
     }
     
     func toCelsius() -> Double {
-        return (self - 32) * 5 / 9
+        return self
     }
     
     func formatted(unit: TemperatureUnit) -> String {
-        let temp = unit == .fahrenheit ? self : toCelsius()
+        let temp = unit == .fahrenheit ? toFahrenheit() : self
         return String(format: "%.0f%@", temp, unit.rawValue)
     }
 }

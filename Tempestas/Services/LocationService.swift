@@ -77,6 +77,20 @@ class LocationService: NSObject, ObservableObject {
         
         return components.joined(separator: ", ")
     }
+    
+    func resolveCityName(for location: CLLocation) async -> String? {
+        let geocoder = CLGeocoder()
+        do {
+            let placemarks = try await geocoder.reverseGeocodeLocation(location)
+            if let placemark = placemarks.first {
+                return placemark.locality ?? placemark.name
+            }
+            return nil
+        } catch {
+            print("❌ Reverse geocoding failed: \(error.localizedDescription)")
+            return nil
+        }
+    }
 }
 
 extension LocationService: CLLocationManagerDelegate {

@@ -41,10 +41,10 @@ struct WeatherDetailView: View {
                     }
                 }
                 
-                // 3-Day Forecast
+                // 7-Day Forecast
                 if !viewModel.dailyForecast.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("3-Day Forecast")
+                        Text("7-Day Forecast")
                             .font(.headline)
                             .padding(.horizontal)
                         
@@ -52,6 +52,28 @@ struct WeatherDetailView: View {
                             DailyForecastCard(forecast: forecast, preferences: preferences)
                         }
                     }
+                }
+                
+                // Historical Context
+                if let statistics = viewModel.dayTemperatureStatistics {
+                    HistoricalComparisonsView(statistics: statistics, preferences: preferences)
+                } else {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Historical Context")
+                            .font(.headline)
+                            .padding(.horizontal)
+                        
+                        Text("Historical data unavailable.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(.vertical)
+                    .background(Color(.systemBackground))
+                    .cornerRadius(12)
+                    .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
+                    .padding(.horizontal)
                 }
                 
                 // Weather Details
@@ -304,4 +326,3 @@ struct WeatherDetailRow: View {
         )
     }
 }
-

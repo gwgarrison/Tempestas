@@ -15,52 +15,61 @@ struct HomeView: View {
     
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Current Location Weather
-                    if let currentLocation = viewModel.currentLocation {
-                        CurrentLocationCard(
-                            location: currentLocation,
-                            weather: viewModel.currentWeather,
-                            preferences: settingsViewModel.preferences
-                        )
-                        .onTapGesture {
-                            // Navigate to detail view
+            List {
+                // Current Location Weather
+                if let currentLocation = viewModel.currentLocation {
+                    Section {
+                        ZStack {
+                            CurrentLocationCard(
+                                location: currentLocation,
+                                weather: viewModel.currentWeather,
+                                preferences: settingsViewModel.preferences
+                            )
+                            NavigationLink(value: currentLocation) {
+                                EmptyView()
+                            }
+                            .opacity(0)
                         }
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                        .listRowBackground(Color.clear)
                     }
-                    
-                    // Saved Locations
-                    if !viewModel.savedLocations.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Saved Locations")
-                                .font(.headline)
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal)
-                            
-                            ForEach(viewModel.savedLocations) { location in
+                }
+                
+                // Saved Locations
+                if !viewModel.savedLocations.isEmpty {
+                    Section(header: Text("Saved Locations")) {
+                        ForEach(viewModel.savedLocations) { location in
+                            ZStack {
                                 SavedLocationCard(
                                     location: location,
                                     weather: viewModel.savedLocationsWeather[location.id],
                                     preferences: settingsViewModel.preferences
                                 )
-                                .onTapGesture {
-                                    // Navigate to detail view
+                                NavigationLink(value: location) {
+                                    EmptyView()
                                 }
-                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                    Button(role: .destructive) {
-                                        withAnimation {
-                                            viewModel.removeLocation(location)
-                                        }
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
+                                .opacity(0)
+                            }
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                            .listRowBackground(Color.clear)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    withAnimation {
+                                        viewModel.removeLocation(location)
                                     }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
                                 }
                             }
                         }
                     }
-                    
-                    // Add Location Button
-                    if viewModel.canAddMoreLocations() {
+                }
+                
+                // Add Location Button
+                if viewModel.canAddMoreLocations() {
+                    Section {
                         Button(action: { showAddLocation = true }) {
                             HStack {
                                 Image(systemName: "plus.circle.fill")
@@ -73,22 +82,42 @@ struct HomeView: View {
                             .foregroundColor(.blue)
                             .cornerRadius(12)
                         }
-                        .padding(.horizontal)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+                        .listRowBackground(Color.clear)
                     }
-                    
-                    // Last Updated
-                    if let lastUpdated = viewModel.lastUpdated {
+                }
+                
+                // Last Updated
+                if let lastUpdated = viewModel.lastUpdated {
+                    Section {
                         Text("Updated \(lastUpdated.relativeTime())")
                             .font(.caption)
                             .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
                     }
                 }
-                .padding(.vertical)
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
             .refreshable {
                 await viewModel.refreshWeatherData()
             }
             .navigationTitle("Tempestas")
+            .navigationDestination(for: WeatherLocation.self) { location in
+                WeatherDetailView(
+                    location: location,
+                    viewModel: WeatherViewModel(runSetup: false),
+                    preferences: settingsViewModel.preferences,
+                    onDeleteLocation: { loc in
+                        if !loc.isCurrentLocation {
+                            viewModel.removeLocation(loc)
+                        }
+                    }
+                )
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: { showSettings = true }) {
