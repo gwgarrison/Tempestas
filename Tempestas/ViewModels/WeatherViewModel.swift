@@ -33,16 +33,40 @@ class WeatherViewModel: ObservableObject {
     private let cacheService = CacheService.shared
     private let storageService = StorageService.shared
     
+    private var cancellables = Set<AnyCancellable>()
+    
     // MARK: - Initialization
     
     init(runSetup: Bool = true) {
         loadSavedLocations()
         if runSetup {
+            setupLocationBindings()
             Task {
                 await setupLocation()
                 await fetchSavedLocationsWeather()
             }
         }
+    }
+    
+    private func setupLocationBindings() {
+        locationService.$currentLocation
+            .compactMap { $0 }
+            .debounce(for: .seconds(0.5), scheduler: DispatchQueue.main)
+            .sink { [weak self] location in
+                Task {
+                    await self?.updateCurrentLocation(from: location)
+                }
+            }
+            .store(in: &cancellables)
+            
+        locationService.$authorizationStatus
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] status in
+                if status == .denied || status == .restricted {
+                    self?.errorMessage = "Location permission denied. Please enable it in Settings."
+                }
+            }
+            .store(in: &cancellables)
     }
     
     // MARK: - Location Setup
@@ -51,40 +75,24 @@ class WeatherViewModel: ObservableObject {
         print("🔍 Starting location setup...")
         locationService.requestLocationPermission()
         
-        // Wait a moment for permission
-        try? await Task.sleep(nanoseconds: 500_000_000)
-        
-        print("📍 Location authorization status: \(locationService.authorizationStatus.rawValue)")
-        
+        // If already authorized, request location immediately
         if locationService.authorizationStatus == .authorizedWhenInUse ||
            locationService.authorizationStatus == .authorizedAlways {
+            print("📍 already authorized, requesting location...")
             locationService.requestLocation()
-            
-            // Wait for location
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
-            
-            if let location = locationService.currentLocation {
-                print("✅ Got location: \(location.coordinate.latitude), \(location.coordinate.longitude)")
-                await updateCurrentLocation(from: location)
-            } else {
-                print("⚠️ No location received, using default (San Francisco)")
-                // Fallback to a default location for testing
-                let defaultLocation = CLLocation(latitude: 37.7749, longitude: -122.4194)
-                await updateCurrentLocation(from: defaultLocation)
-            }
-        } else {
-            print("⚠️ Location permission not granted, using default location")
-            errorMessage = "Location permission denied. Using default location."
-            // Use default location
-            let defaultLocation = CLLocation(latitude: 37.7749, longitude: -122.4194)
-            await updateCurrentLocation(from: defaultLocation)
         }
     }
     
     func updateCurrentLocation(from clLocation: CLLocation) async {
         print("📍 Updating current location...")
+        
+        // Resolve city name
+        let cityName = await locationService.resolveCityName(for: clLocation)
+        let displayName = cityName ?? "Current Location"
+        print("📍 Resolved city name: \(displayName)")
+        
         let location = WeatherLocation(
-            name: "Current Location",
+            name: displayName,
             latitude: clLocation.coordinate.latitude,
             longitude: clLocation.coordinate.longitude,
             isCurrentLocation: true
