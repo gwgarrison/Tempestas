@@ -20,6 +20,7 @@ class WeatherViewModel: ObservableObject {
     @Published var hourlyForecast: [HourlyForecast] = []
     @Published var dailyForecast: [DailyForecast] = []
     @Published var dayTemperatureStatistics: DailyStatistics?
+    @Published var climateStats: [MonthlyClimateStats] = []
     @Published var savedLocationsWeather: [UUID: CurrentWeather] = [:]
     
     @Published var isLoading = false
@@ -155,6 +156,11 @@ class WeatherViewModel: ObservableObject {
                 print("⚠️ No historical statistics returned")
             }
             dayTemperatureStatistics = stats
+            
+            print("🌐 Fetching climate stats...")
+            let climate = await weatherService.fetchClimateStats(for: location)
+            print("✅ Got \(climate.count) months of climate data")
+            climateStats = climate
             
             lastUpdated = Date()
         } catch {

@@ -124,6 +124,17 @@ class WeatherService {
         let temperature_2m_min: [Double?]
     }
     
+    private struct OpenMeteoClimateResponse: Codable {
+        let daily: ClimateDailyData
+    }
+    
+    private struct ClimateDailyData: Codable {
+        let time: [String]
+        let temperature_2m_max: [Double?]
+        let temperature_2m_min: [Double?]
+        let precipitation_sum: [Double?]
+    }
+    
     func fetchHistoricalAverages(for location: WeatherLocation) async -> DailyStatistics? {
         // Calculate date range: Last 10 years
         let calendar = Calendar.current
@@ -184,6 +195,87 @@ class WeatherService {
         } catch {
             print("❌ OpenMeteo fetch failed: \(error)")
             return nil
+        }
+    }
+    
+    func fetchClimateStats(for location: WeatherLocation) async -> [MonthlyClimateStats] {
+        // Calculate date range: Last 10 full years (e.g. 2014-2023 if today is 2024)
+        let calendar = Calendar.current
+        let today = Date()
+        let currentYear = calendar.component(.year, from: today)
+        let startYear = currentYear - 11
+        let endYear = currentYear - 1
+        
+        // Updated URL to fetch max and min temperatures
+        let urlString = "https://archive-api.open-meteo.com/v1/archive?latitude=\(location.latitude)&longitude=\(location.longitude)&start_date=\(startYear)-01-01&end_date=\(endYear)-12-31&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto"
+        
+        guard let url = URL(string: urlString) else { return [] }
+        
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let response = try JSONDecoder().decode(OpenMeteoClimateResponse.self, from: data)
+            
+            var monthlyMaxTempSums = [Int: Double]()
+            var monthlyMinTempSums = [Int: Double]()
+            var monthlyPrecipSums = [Int: Double]()
+            var monthlyCounts = [Int: Int]()
+            
+            // Initialize
+            for m in 1...12 {
+                monthlyMaxTempSums[m] = 0
+                monthlyMinTempSums[m] = 0
+                monthlyPrecipSums[m] = 0
+                monthlyCounts[m] = 0
+            }
+            
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            
+            for (index, dateString) in response.daily.time.enumerated() {
+                guard let date = dateFormatter.date(from: dateString),
+                      let maxTemp = response.daily.temperature_2m_max[index],
+                      let minTemp = response.daily.temperature_2m_min[index],
+                      let precip = response.daily.precipitation_sum[index] else {
+                    continue
+                }
+                
+                let month = calendar.component(.month, from: date)
+                
+                monthlyMaxTempSums[month, default: 0] += maxTemp
+                monthlyMinTempSums[month, default: 0] += minTemp
+                monthlyPrecipSums[month, default: 0] += precip
+                monthlyCounts[month, default: 0] += 1
+            }
+            
+            var stats: [MonthlyClimateStats] = []
+            let monthSymbols = dateFormatter.shortMonthSymbols ?? []
+            
+            for m in 1...12 {
+                let count = Double(monthlyCounts[m] ?? 1)
+                
+                // Average monthly precip = Total Sum / 10 years
+                let numberOfYears = 10.0
+                
+                let avgMaxTemp = (monthlyMaxTempSums[m] ?? 0) / (count > 0 ? count : 1)
+                let avgMinTemp = (monthlyMinTempSums[m] ?? 0) / (count > 0 ? count : 1)
+                let avgPrecip = (monthlyPrecipSums[m] ?? 0) / numberOfYears
+                
+                let monthName = (m <= monthSymbols.count) ? monthSymbols[m-1] : "\(m)"
+                
+                stats.append(MonthlyClimateStats(
+                    month: m,
+                    monthName: monthName,
+                    averageHighTemperature: avgMaxTemp,
+                    averageLowTemperature: avgMinTemp,
+                    averagePrecipitation: avgPrecip
+                ))
+            }
+            
+            return stats
+            
+        } catch {
+            print("❌ Failed to fetch climate stats: \(error)")
+            return []
         }
     }
 }
