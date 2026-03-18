@@ -38,14 +38,19 @@ struct WeatherDetailView: View {
                     if let weather = viewModel.currentWeather {
                         WeatherHeroSection(weather: weather, preferences: preferences)
                     }
-                    
+
+                    // Best Time to Be Outside
+                    if !viewModel.hourlyForecast.isEmpty {
+                        BestTimeOutsideView(hourlyForecast: viewModel.hourlyForecast, preferences: preferences)
+                    }
+
                     // Hourly Forecast
                     if !viewModel.hourlyForecast.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Today's Forecast")
                                 .font(.headline)
                                 .padding(.horizontal)
-                            
+
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 16) {
                                     ForEach(viewModel.hourlyForecast) { forecast in
@@ -56,7 +61,12 @@ struct WeatherDetailView: View {
                             }
                         }
                     }
-                    
+
+                    // Precipitation Chart
+                    if !viewModel.hourlyForecast.isEmpty {
+                        PrecipitationChartView(hourlyForecast: viewModel.hourlyForecast, preferences: preferences)
+                    }
+
                     // 7-Day Forecast
                     if !viewModel.dailyForecast.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
@@ -94,7 +104,12 @@ struct WeatherDetailView: View {
                     
                     // Weather Details
                     if let weather = viewModel.currentWeather {
-                        WeatherDetailsSection(weather: weather, preferences: preferences)
+                        WeatherDetailsSection(
+                            weather: weather,
+                            preferences: preferences,
+                            moonPhase: viewModel.dailyForecast.first?.moonPhase,
+                            moonPhaseSymbol: viewModel.dailyForecast.first?.moonPhaseSymbol
+                        )
                     }
                     
                     // Last Updated
@@ -256,51 +271,63 @@ struct DailyForecastCard: View {
 struct WeatherDetailsSection: View {
     let weather: CurrentWeather
     let preferences: UserPreferences
-    
+    var moonPhase: String? = nil
+    var moonPhaseSymbol: String? = nil
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Details")
                 .font(.headline)
                 .padding(.horizontal)
-            
+
             VStack(spacing: 0) {
                 WeatherDetailRow(
                     icon: "drop.fill",
                     title: "Humidity",
                     value: "\(weather.humidity)%"
                 )
-                
+
                 Divider()
-                
+
                 WeatherDetailRow(
                     icon: "wind",
                     title: "Wind",
                     value: "\(weather.windSpeed.formatted(windUnit: preferences.windSpeedUnit)) \(weather.windDirection.toCardinalDirection())"
                 )
-                
+
                 Divider()
-                
+
                 WeatherDetailRow(
                     icon: "sun.max.fill",
                     title: "UV Index",
-                    value: "\(weather.uvIndex) (High)"
+                    value: "\(weather.uvIndex)"
                 )
-                
+
                 Divider()
-                
+
                 WeatherDetailRow(
                     icon: "sunrise.fill",
                     title: "Sunrise",
                     value: weather.sunrise.formatted(timeFormat: preferences.timeFormat)
                 )
-                
+
                 Divider()
-                
+
                 WeatherDetailRow(
                     icon: "sunset.fill",
                     title: "Sunset",
                     value: weather.sunset.formatted(timeFormat: preferences.timeFormat)
                 )
+
+                if let phase = moonPhase, let symbol = moonPhaseSymbol, !phase.isEmpty {
+                    Divider()
+
+                    WeatherDetailRow(
+                        icon: symbol,
+                        title: "Moon Phase",
+                        value: phase
+                    )
+                }
             }
             .background(Color(.systemBackground))
             .cornerRadius(12)

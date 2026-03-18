@@ -55,7 +55,9 @@ class WeatherService {
                     temperature: $0.temperature.converted(to: .celsius).value,
                     condition: $0.condition.description,
                     conditionCode: $0.symbolName,
-                    precipitationChance: Int($0.precipitationChance * 100)
+                    precipitationChance: Int($0.precipitationChance * 100),
+                    windSpeed: $0.wind.speed.converted(to: .kilometersPerHour).value,
+                    uvIndex: $0.uvIndex.value
                 )
             }
     }
@@ -71,11 +73,27 @@ class WeatherService {
                 lowTemp: $0.lowTemperature.converted(to: .celsius).value,
                 condition: $0.condition.description,
                 conditionCode: $0.symbolName,
-                precipitationChance: Int($0.precipitationChance * 100)
+                precipitationChance: Int($0.precipitationChance * 100),
+                moonPhase: $0.moon.phase.description,
+                moonPhaseSymbol: moonPhaseSymbol(for: $0.moon.phase)
             )
         }
     }
     
+    private func moonPhaseSymbol(for phase: WeatherKit.MoonPhase) -> String {
+        switch phase {
+        case .new:             return "moonphase.new.moon"
+        case .waxingCrescent:  return "moonphase.waxing.crescent"
+        case .firstQuarter:    return "moonphase.first.quarter"
+        case .waxingGibbous:   return "moonphase.waxing.gibbous"
+        case .full:            return "moonphase.full.moon"
+        case .waningGibbous:   return "moonphase.waning.gibbous"
+        case .lastQuarter:     return "moonphase.last.quarter"
+        case .waningCrescent:  return "moonphase.waning.crescent"
+        @unknown default:      return "moon.fill"
+        }
+    }
+
     func fetchDayTemperatureStatistics(for location: WeatherLocation) async throws -> DayTemperatureStatistics? {
         let clLocation = CLLocation(latitude: location.latitude, longitude: location.longitude)
         print("📊 Fetching historical statistics for \(location.name)...")
@@ -199,15 +217,24 @@ class WeatherService {
     }
     
     func fetchClimateStats(for location: WeatherLocation) async -> [MonthlyClimateStats] {
-        // Calculate date range: Last 10 full years (e.g. 2014-2023 if today is 2024)
+        // Define Periods
+        // Recent: Last 10 full years (e.g. 2014-2023 if today is 2024)
+        // Historical: 1980 - 1999 (20 years)
+        
         let calendar = Calendar.current
         let today = Date()
         let currentYear = calendar.component(.year, from: today)
-        let startYear = currentYear - 11
-        let endYear = currentYear - 1
         
-        // Updated URL to fetch max and min temperatures
-        let urlString = "https://archive-api.open-meteo.com/v1/archive?latitude=\(location.latitude)&longitude=\(location.longitude)&start_date=\(startYear)-01-01&end_date=\(endYear)-12-31&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto"
+        // Recent Period
+        let recentStartYear = currentYear - 11
+        let recentEndYear = currentYear - 1
+        
+        // Historical Period
+        let histStartYear = 1980
+        let histEndYear = 1999
+        
+        // Fetch from the earliest start date (1980) to the latest end date
+        let urlString = "https://archive-api.open-meteo.com/v1/archive?latitude=\(location.latitude)&longitude=\(location.longitude)&start_date=\(histStartYear)-01-01&end_date=\(recentEndYear)-12-31&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto"
         
         guard let url = URL(string: urlString) else { return [] }
         
@@ -215,17 +242,29 @@ class WeatherService {
             let (data, _) = try await URLSession.shared.data(from: url)
             let response = try JSONDecoder().decode(OpenMeteoClimateResponse.self, from: data)
             
-            var monthlyMaxTempSums = [Int: Double]()
-            var monthlyMinTempSums = [Int: Double]()
-            var monthlyPrecipSums = [Int: Double]()
-            var monthlyCounts = [Int: Int]()
+            // Recent Accumulators
+            var recentMaxTempSums = [Int: Double]()
+            var recentMinTempSums = [Int: Double]()
+            var recentPrecipSums = [Int: Double]()
+            var recentCounts = [Int: Int]()
+            
+            // Historical Accumulators
+            var histMaxTempSums = [Int: Double]()
+            var histMinTempSums = [Int: Double]()
+            var histPrecipSums = [Int: Double]()
+            var histCounts = [Int: Int]()
             
             // Initialize
             for m in 1...12 {
-                monthlyMaxTempSums[m] = 0
-                monthlyMinTempSums[m] = 0
-                monthlyPrecipSums[m] = 0
-                monthlyCounts[m] = 0
+                recentMaxTempSums[m] = 0
+                recentMinTempSums[m] = 0
+                recentPrecipSums[m] = 0
+                recentCounts[m] = 0
+                
+                histMaxTempSums[m] = 0
+                histMinTempSums[m] = 0
+                histPrecipSums[m] = 0
+                histCounts[m] = 0
             }
             
             let dateFormatter = DateFormatter()
@@ -239,35 +278,55 @@ class WeatherService {
                     continue
                 }
                 
+                let year = calendar.component(.year, from: date)
                 let month = calendar.component(.month, from: date)
                 
-                monthlyMaxTempSums[month, default: 0] += maxTemp
-                monthlyMinTempSums[month, default: 0] += minTemp
-                monthlyPrecipSums[month, default: 0] += precip
-                monthlyCounts[month, default: 0] += 1
+                if year >= recentStartYear && year <= recentEndYear {
+                    // Add to Recent
+                    recentMaxTempSums[month, default: 0] += maxTemp
+                    recentMinTempSums[month, default: 0] += minTemp
+                    recentPrecipSums[month, default: 0] += precip
+                    recentCounts[month, default: 0] += 1
+                } else if year >= histStartYear && year <= histEndYear {
+                    // Add to Historical
+                    histMaxTempSums[month, default: 0] += maxTemp
+                    histMinTempSums[month, default: 0] += minTemp
+                    histPrecipSums[month, default: 0] += precip
+                    histCounts[month, default: 0] += 1
+                }
             }
             
             var stats: [MonthlyClimateStats] = []
             let monthSymbols = dateFormatter.shortMonthSymbols ?? []
             
             for m in 1...12 {
-                let count = Double(monthlyCounts[m] ?? 1)
+                // Recent Calculations
+                let rCount = Double(recentCounts[m] ?? 1)
+                let rYears = 10.0 // Recent period is 10 years fixed for precip division
                 
-                // Average monthly precip = Total Sum / 10 years
-                let numberOfYears = 10.0
+                let avgMaxTemp = (recentMaxTempSums[m] ?? 0) / (rCount > 0 ? rCount : 1)
+                let avgMinTemp = (recentMinTempSums[m] ?? 0) / (rCount > 0 ? rCount : 1)
+                // Use actual count or fixed? Precip is usually Total / Years.
+                // Using 10.0 is safe for 'Average Monthly Precip' over a 10 year period.
+                let avgPrecip = (recentPrecipSums[m] ?? 0) / rYears
                 
-                let avgMaxTemp = (monthlyMaxTempSums[m] ?? 0) / (count > 0 ? count : 1)
-                let avgMinTemp = (monthlyMinTempSums[m] ?? 0) / (count > 0 ? count : 1)
-                let avgPrecip = (monthlyPrecipSums[m] ?? 0) / numberOfYears
-                
+                // Historical Calculations
+                let hCount = Double(histCounts[m] ?? 1)
+                let histMaxTemp = (histMaxTempSums[m] ?? 0) / (hCount > 0 ? hCount : 1)
+                let histMinTemp = (histMinTempSums[m] ?? 0) / (hCount > 0 ? hCount : 1)
+                let histAvgPrecip = (histPrecipSums[m] ?? 0) / 20.0  // 1980–1999 = 20 years
+
                 let monthName = (m <= monthSymbols.count) ? monthSymbols[m-1] : "\(m)"
-                
+
                 stats.append(MonthlyClimateStats(
                     month: m,
                     monthName: monthName,
                     averageHighTemperature: avgMaxTemp,
                     averageLowTemperature: avgMinTemp,
-                    averagePrecipitation: avgPrecip
+                    averagePrecipitation: avgPrecip,
+                    historicalHighTemperature: histMaxTemp,
+                    historicalLowTemperature: histMinTemp,
+                    historicalPrecipitation: histAvgPrecip
                 ))
             }
             
