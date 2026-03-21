@@ -12,6 +12,11 @@ struct ClimateView: View {
     let stats: [MonthlyClimateStats]
     let preferences: UserPreferences
     
+    private var recentYearRange: String {
+        let currentYear = Calendar.current.component(.year, from: Date())
+        return "\(currentYear - 11)–\(currentYear - 1)"
+    }
+    
     private var currentMonthStats: MonthlyClimateStats? {
         let currentMonth = Calendar.current.component(.month, from: Date())
         return stats.first { $0.month == currentMonth }
@@ -75,7 +80,7 @@ struct ClimateView: View {
                                 RoundedRectangle(cornerRadius: 1)
                                     .fill(Color.primary)
                                     .frame(width: 20, height: 3)
-                                Text("Recent Average")
+                                Text("\(recentYearRange) Average")
                                     .font(.caption)
                                     .fontWeight(.medium)
                             }
@@ -190,7 +195,7 @@ struct ClimateView: View {
                     HStack(spacing: 16) {
                         HStack(spacing: 6) {
                             RoundedRectangle(cornerRadius: 2).fill(Color.blue).frame(width: 20, height: 10)
-                            Text("Recent Average").font(.caption).fontWeight(.medium)
+                            Text("\(recentYearRange) Average").font(.caption).fontWeight(.medium)
                         }
                         HStack(spacing: 6) {
                             HStack(spacing: 3) {
@@ -226,7 +231,7 @@ struct ClimateView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Temperature Anomaly")
                         .font(.headline)
-                    Text("Recent average high vs. 1980–1999 baseline. Orange = warmer, blue = cooler.")
+                    Text("\(recentYearRange) average high vs. 1980–1999 baseline. Orange = warmer, blue = cooler.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .padding(.bottom, 4)

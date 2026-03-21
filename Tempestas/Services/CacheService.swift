@@ -29,6 +29,14 @@ class CacheService {
         static let currentWeather: TimeInterval = 10 * 60 // 10 minutes
         static let hourlyForecast: TimeInterval = 60 * 60 // 1 hour
         static let dailyForecast: TimeInterval = 2 * 60 * 60 // 2 hours
+
+        /// Seconds remaining until midnight — cache expires at the start of the next day
+        static var untilEndOfDay: TimeInterval {
+            let calendar = Calendar.current
+            let now = Date()
+            let midnight = calendar.startOfDay(for: calendar.date(byAdding: .day, value: 1, to: now)!)
+            return midnight.timeIntervalSince(now)
+        }
     }
     
     // MARK: - Cache Methods

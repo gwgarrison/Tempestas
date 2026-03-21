@@ -12,7 +12,9 @@ struct HomeView: View {
     @StateObject private var settingsViewModel = SettingsViewModel()
     @State private var showSettings = false
     @State private var showAddLocation = false
-    
+    @State private var hasAppeared = false
+    @Environment(\.scenePhase) private var scenePhase
+
     var body: some View {
         NavigationStack {
             List {
@@ -109,7 +111,7 @@ struct HomeView: View {
             .navigationDestination(for: WeatherLocation.self) { location in
                 WeatherDetailView(
                     location: location,
-                    viewModel: WeatherViewModel(runSetup: false),
+                    viewModel: location.isCurrentLocation ? viewModel : WeatherViewModel(runSetup: false),
                     preferences: settingsViewModel.preferences,
                     onDeleteLocation: { loc in
                         if !loc.isCurrentLocation {
@@ -117,6 +119,12 @@ struct HomeView: View {
                         }
                     }
                 )
+            }
+            .onAppear {
+                if hasAppeared {
+                    Task { await viewModel.refreshWeatherData() }
+                }
+                hasAppeared = true
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -130,6 +138,14 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showAddLocation) {
                 AddLocationView(viewModel: viewModel)
+            }
+            .task {
+                ClimateDataPrefetchService.shared.prefetchAllIfNeeded(currentLocation: viewModel.currentLocation)
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .active {
+                    ClimateDataPrefetchService.shared.prefetchAllIfNeeded(currentLocation: viewModel.currentLocation)
+                }
             }
             .overlay {
                 if viewModel.isLoading && viewModel.currentWeather == nil {

@@ -148,19 +148,35 @@ class WeatherViewModel: ObservableObject {
             dailyForecast = daily
             cacheService.cache(daily, forKey: "daily_\(locationKey)", duration: CacheService.CacheDuration.dailyForecast)
             
-            print("🌐 Fetching historical statistics...")
-            let stats = await weatherService.fetchHistoricalAverages(for: location)
-            if let stats = stats {
-                print("✅ Got historical statistics: \(stats.averageHighTemperature) / \(stats.averageLowTemperature)")
+            // Historical statistics — cached until end of day
+            if let cached = cacheService.retrieve(forKey: "historical_\(locationKey)", as: DailyStatistics.self) {
+                print("💾 Using cached historical statistics")
+                dayTemperatureStatistics = cached
             } else {
-                print("⚠️ No historical statistics returned")
+                print("🌐 Fetching historical statistics...")
+                let stats = await weatherService.fetchHistoricalAverages(for: location)
+                if let stats = stats {
+                    print("✅ Got historical statistics: \(stats.averageHighTemperature) / \(stats.averageLowTemperature)")
+                    cacheService.cache(stats, forKey: "historical_\(locationKey)", duration: CacheService.CacheDuration.untilEndOfDay)
+                } else {
+                    print("⚠️ No historical statistics returned")
+                }
+                dayTemperatureStatistics = stats
             }
-            dayTemperatureStatistics = stats
-            
-            print("🌐 Fetching climate stats...")
-            let climate = await weatherService.fetchClimateStats(for: location)
-            print("✅ Got \(climate.count) months of climate data")
-            climateStats = climate
+
+            // Climate stats — cached until end of day
+            if let cached = cacheService.retrieve(forKey: "climate_\(locationKey)", as: [MonthlyClimateStats].self) {
+                print("💾 Using cached climate stats")
+                climateStats = cached
+            } else {
+                print("🌐 Fetching climate stats...")
+                let climate = await weatherService.fetchClimateStats(for: location)
+                print("✅ Got \(climate.count) months of climate data")
+                if !climate.isEmpty {
+                    cacheService.cache(climate, forKey: "climate_\(locationKey)", duration: CacheService.CacheDuration.untilEndOfDay)
+                }
+                climateStats = climate
+            }
             
             lastUpdated = Date()
         } catch {
@@ -218,10 +234,11 @@ class WeatherViewModel: ObservableObject {
         print("➕ Adding location: \(location.name)")
         savedLocations.append(location)
         storageService.saveSavedLocations(savedLocations)
-        
-        // Fetch weather for the new location
+
         Task {
             await fetchWeatherForLocation(location)
+            // Prefetch climate/historical data immediately for the new location
+            ClimateDataPrefetchService.shared.prefetch(for: location)
         }
     }
     

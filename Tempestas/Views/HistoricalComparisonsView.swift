@@ -26,14 +26,34 @@ struct HistoricalComparisonsView: View {
                     icon: "thermometer.sun",
                     preferences: preferences
                 )
-                
+
                 Divider()
-                
+
                 // Average Low
                 ComparisonRow(
                     label: "Average Low",
                     value: statistics.averageLowTemperature,
                     icon: "thermometer.snowflake",
+                    preferences: preferences
+                )
+
+                Divider()
+
+                // All-Time High
+                ComparisonRow(
+                    label: "All-Time High",
+                    value: statistics.allTimeHigh,
+                    icon: "thermometer.high",
+                    preferences: preferences
+                )
+
+                Divider()
+
+                // All-Time Low
+                ComparisonRow(
+                    label: "All-Time Low",
+                    value: statistics.allTimeLow,
+                    icon: "thermometer.low",
                     preferences: preferences
                 )
             }

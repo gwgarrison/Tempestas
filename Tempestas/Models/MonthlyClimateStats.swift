@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct MonthlyClimateStats: Identifiable {
+struct MonthlyClimateStats: Identifiable, Codable {
     var id: Int { month }
     let month: Int // 1-12
     let monthName: String

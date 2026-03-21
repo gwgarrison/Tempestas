@@ -154,62 +154,74 @@ class WeatherService {
     }
     
     func fetchHistoricalAverages(for location: WeatherLocation) async -> DailyStatistics? {
-        // Calculate date range: Last 10 years
+        // Fetch from 1980 to yesterday for all-time records and 10-year averages
         let calendar = Calendar.current
         let today = Date()
-        guard let tenYearsAgo = calendar.date(byAdding: .year, value: -10, to: today),
-              let yesterday = calendar.date(byAdding: .day, value: -1, to: today) else {
+        let currentYear = calendar.component(.year, from: today)
+        guard let yesterday = calendar.date(byAdding: .day, value: -1, to: today) else {
             return nil
         }
-        
+
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
-        
-        let startDate = dateFormatter.string(from: tenYearsAgo)
+
+        let startDate = "1980-01-01"
         let endDate = dateFormatter.string(from: yesterday)
-        
+        let tenYearsAgoYear = currentYear - 10
+
         let urlString = "https://archive-api.open-meteo.com/v1/archive?latitude=\(location.latitude)&longitude=\(location.longitude)&start_date=\(startDate)&end_date=\(endDate)&daily=temperature_2m_max,temperature_2m_min&timezone=auto"
-        
+
         guard let url = URL(string: urlString) else { return nil }
-        
+
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
             let response = try JSONDecoder().decode(OpenMeteoResponse.self, from: data)
-            
+
             // Filter for matching Month/Day
             let targetMonth = calendar.component(.month, from: today)
             let targetDay = calendar.component(.day, from: today)
-            
-            var maxTemps: [Double] = []
-            var minTemps: [Double] = []
-            
+
+            var recentMaxTemps: [Double] = []
+            var recentMinTemps: [Double] = []
+            var allTimeMaxTemps: [Double] = []
+            var allTimeMinTemps: [Double] = []
+
             for (index, dateString) in response.daily.time.enumerated() {
                 if let date = dateFormatter.date(from: dateString) {
                     let month = calendar.component(.month, from: date)
                     let day = calendar.component(.day, from: date)
-                    
+                    let year = calendar.component(.year, from: date)
+
                     if month == targetMonth && day == targetDay {
                         if index < response.daily.temperature_2m_max.count, let max = response.daily.temperature_2m_max[index] {
-                            maxTemps.append(max)
+                            allTimeMaxTemps.append(max)
+                            if year >= tenYearsAgoYear { recentMaxTemps.append(max) }
                         }
                         if index < response.daily.temperature_2m_min.count, let min = response.daily.temperature_2m_min[index] {
-                            minTemps.append(min)
+                            allTimeMinTemps.append(min)
+                            if year >= tenYearsAgoYear { recentMinTemps.append(min) }
                         }
                     }
                 }
             }
-            
-            guard !maxTemps.isEmpty, !minTemps.isEmpty else { return nil }
-            
-            let avgMax = maxTemps.reduce(0, +) / Double(maxTemps.count)
-            let avgMin = minTemps.reduce(0, +) / Double(minTemps.count)
-            
+
+            guard !allTimeMaxTemps.isEmpty, !allTimeMinTemps.isEmpty else { return nil }
+
+            let maxList = recentMaxTemps.isEmpty ? allTimeMaxTemps : recentMaxTemps
+            let minList = recentMinTemps.isEmpty ? allTimeMinTemps : recentMinTemps
+            let avgMax = maxList.reduce(0, +) / Double(maxList.count)
+            let avgMin = minList.reduce(0, +) / Double(minList.count)
+            let allTimeHigh = allTimeMaxTemps.max()!
+            let allTimeLow = allTimeMinTemps.min()!
+
             // Open-Meteo returns Celsius
             return DailyStatistics(
                 averageHighTemperature: Measurement(value: avgMax, unit: .celsius),
-                averageLowTemperature: Measurement(value: avgMin, unit: .celsius)
+                averageLowTemperature: Measurement(value: avgMin, unit: .celsius),
+                allTimeHigh: Measurement(value: allTimeHigh, unit: .celsius),
+                allTimeLow: Measurement(value: allTimeLow, unit: .celsius)
             )
-            
+
         } catch {
             print("❌ OpenMeteo fetch failed: \(error)")
             return nil

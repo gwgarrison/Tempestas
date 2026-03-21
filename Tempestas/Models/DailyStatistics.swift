@@ -7,7 +7,9 @@
 
 import Foundation
 
-struct DailyStatistics {
+struct DailyStatistics: Codable {
     let averageHighTemperature: Measurement<UnitTemperature>
     let averageLowTemperature: Measurement<UnitTemperature>
+    let allTimeHigh: Measurement<UnitTemperature>
+    let allTimeLow: Measurement<UnitTemperature>
 }
