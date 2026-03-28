@@ -21,4 +21,6 @@ struct CurrentWeather: Codable {
     let sunrise: Date
     let sunset: Date
     let lastUpdated: Date
+    var airQualityIndex: Int? = nil
+    var airQualityCategory: String? = nil
 }

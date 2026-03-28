@@ -41,7 +41,11 @@ struct WeatherDetailView: View {
 
                     // Best Time to Be Outside
                     if !viewModel.hourlyForecast.isEmpty {
-                        BestTimeOutsideView(hourlyForecast: viewModel.hourlyForecast, preferences: preferences)
+                        BestTimeOutsideView(
+                            hourlyForecast: viewModel.hourlyForecast,
+                            preferences: preferences,
+                            airQualityIndex: viewModel.currentWeather?.airQualityIndex
+                        )
                     }
 
                     // Hourly Forecast
@@ -274,6 +278,12 @@ struct WeatherDetailsSection: View {
     var moonPhase: String? = nil
     var moonPhaseSymbol: String? = nil
 
+    private func aqiSymbol(for index: Int) -> String {
+        if index <= 50 { return "aqi.low" }
+        if index <= 100 { return "aqi.medium" }
+        return "aqi.high"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Details")
@@ -302,6 +312,16 @@ struct WeatherDetailsSection: View {
                     title: "UV Index",
                     value: "\(weather.uvIndex)"
                 )
+
+                if let aqi = weather.airQualityIndex, let category = weather.airQualityCategory {
+                    Divider()
+
+                    WeatherDetailRow(
+                        icon: aqiSymbol(for: aqi),
+                        title: "Air Quality",
+                        value: "\(aqi) – \(category)"
+                    )
+                }
 
                 Divider()
 

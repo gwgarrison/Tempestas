@@ -8,6 +8,7 @@ import SwiftUI
 struct BestTimeOutsideView: View {
     let hourlyForecast: [HourlyForecast]
     let preferences: UserPreferences
+    var airQualityIndex: Int? = nil
 
     private struct OutdoorWindow {
         let start: Date
@@ -111,6 +112,14 @@ struct BestTimeOutsideView: View {
         else if temp > 32 { score -= 20 }
         else if temp > 27 { score -= 8  }
 
+        // Air quality penalty (AQI doesn't vary hourly, applied uniformly)
+        if let aqi = airQualityIndex {
+            if aqi > 200      { score -= 60 }
+            else if aqi > 150 { score -= 40 }
+            else if aqi > 100 { score -= 25 }
+            else if aqi > 50  { score -= 10 }
+        }
+
         return max(0, score)
     }
 
@@ -127,6 +136,13 @@ struct BestTimeOutsideView: View {
             parts.append("high UV – use sunscreen")
         } else if uvIndex >= 6 {
             parts.append("moderate UV")
+        }
+
+        if let aqi = airQualityIndex {
+            if aqi > 200      { parts.append("very unhealthy air quality") }
+            else if aqi > 150 { parts.append("unhealthy air quality") }
+            else if aqi > 100 { parts.append("air quality unhealthy for sensitive groups") }
+            else if aqi > 50  { parts.append("moderate air quality") }
         }
 
         return parts.isEmpty ? "Best window for the day" : parts.joined(separator: ", ")

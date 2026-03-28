@@ -14,14 +14,16 @@ class WeatherService {
     
     func fetchCurrentWeather(for location: WeatherLocation) async throws -> CurrentWeather {
         let clLocation = CLLocation(latitude: location.latitude, longitude: location.longitude)
-        
+
         async let currentTask = service.weather(for: clLocation, including: .current)
         async let dailyTask = service.weather(for: clLocation, including: .daily)
-        
+        async let airQualityTask = fetchAirQuality(for: location)
+
         let (weather, daily) = try await (currentTask, dailyTask)
-        
+        let airQuality = await airQualityTask
+
         let today = daily.forecast.first { Calendar.current.isDate($0.date, inSameDayAs: Date()) }
-        
+
         // Explicitly convert to Celsius to ensure consistent unit in Model
         return CurrentWeather(
             temperature: weather.temperature.converted(to: .celsius).value,
@@ -36,8 +38,42 @@ class WeatherService {
             uvIndex: weather.uvIndex.value,
             sunrise: today?.sun.sunrise ?? Date(),
             sunset: today?.sun.sunset ?? Date(),
-            lastUpdated: Date()
+            lastUpdated: Date(),
+            airQualityIndex: airQuality?.index,
+            airQualityCategory: airQuality?.category
         )
+    }
+
+    private struct OpenMeteoAirQualityResponse: Codable {
+        let current: AirQualityCurrent
+        struct AirQualityCurrent: Codable {
+            let us_aqi: Int?
+        }
+    }
+
+    private func fetchAirQuality(for location: WeatherLocation) async -> (index: Int, category: String)? {
+        let urlString = "https://air-quality-api.open-meteo.com/v1/air-quality?latitude=\(location.latitude)&longitude=\(location.longitude)&current=us_aqi"
+        guard let url = URL(string: urlString) else { return nil }
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let response = try JSONDecoder().decode(OpenMeteoAirQualityResponse.self, from: data)
+            guard let aqi = response.current.us_aqi else { return nil }
+            return (index: aqi, category: aqiCategory(for: aqi))
+        } catch {
+            print("❌ Air quality fetch failed: \(error)")
+            return nil
+        }
+    }
+
+    private func aqiCategory(for index: Int) -> String {
+        switch index {
+        case 0...50:    return "Good"
+        case 51...100:  return "Moderate"
+        case 101...150: return "Unhealthy for Sensitive Groups"
+        case 151...200: return "Unhealthy"
+        case 201...300: return "Very Unhealthy"
+        default:        return "Hazardous"
+        }
     }
     
     func fetchHourlyForecast(for location: WeatherLocation) async throws -> [HourlyForecast] {
