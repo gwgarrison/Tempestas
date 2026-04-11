@@ -18,122 +18,133 @@ struct WeatherDetailView: View {
     
     enum DetailViewMode: String, CaseIterable, Identifiable {
         case forecast = "Forecast"
-        case climate = "Climate"
+        case climate  = "Climate"
+        case map      = "Map"
         var id: String { rawValue }
     }
     
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                Picker("Mode", selection: $selectedTab) {
-                    ForEach(DetailViewMode.allCases) { mode in
-                        Text(mode.rawValue).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
-                
-                if selectedTab == .forecast {
-                    // Hero Section
-                    if let weather = viewModel.currentWeather {
-                        WeatherHeroSection(weather: weather, preferences: preferences)
-                    }
-
-                    // Best Time to Be Outside
-                    if !viewModel.hourlyForecast.isEmpty {
-                        BestTimeOutsideView(
-                            hourlyForecast: viewModel.hourlyForecast,
-                            preferences: preferences,
-                            airQualityIndex: viewModel.currentWeather?.airQualityIndex
-                        )
-                    }
-
-                    // Hourly Forecast
-                    if !viewModel.hourlyForecast.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Today's Forecast")
-                                .font(.headline)
-                                .padding(.horizontal)
-
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 16) {
-                                    ForEach(viewModel.hourlyForecast) { forecast in
-                                        HourlyForecastCard(forecast: forecast, preferences: preferences)
-                                    }
-                                }
-                                .padding(.horizontal)
-                            }
-                        }
-                    }
-
-                    // Precipitation Chart
-                    if !viewModel.hourlyForecast.isEmpty {
-                        PrecipitationChartView(hourlyForecast: viewModel.hourlyForecast, preferences: preferences)
-                    }
-
-                    // 7-Day Forecast
-                    if !viewModel.dailyForecast.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("7-Day Forecast")
-                                .font(.headline)
-                                .padding(.horizontal)
-                            
-                            ForEach(viewModel.dailyForecast) { forecast in
-                                DailyForecastCard(forecast: forecast, preferences: preferences)
-                            }
-                        }
-                    }
-                    
-                    // Historical Context
-                    if let statistics = viewModel.dayTemperatureStatistics {
-                        HistoricalComparisonsView(statistics: statistics, preferences: preferences)
-                    } else {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Historical Context")
-                                .font(.headline)
-                                .padding(.horizontal)
-                            
-                            Text("Historical data unavailable.")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                                .padding()
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .padding(.vertical)
-                        .background(Color(.systemBackground))
-                        .cornerRadius(12)
-                        .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
-                        .padding(.horizontal)
-                    }
-                    
-                    // Weather Details
-                    if let weather = viewModel.currentWeather {
-                        WeatherDetailsSection(
-                            weather: weather,
-                            preferences: preferences,
-                            moonPhase: viewModel.dailyForecast.first?.moonPhase,
-                            moonPhaseSymbol: viewModel.dailyForecast.first?.moonPhaseSymbol
-                        )
-                    }
-                    
-                    // Last Updated
-                    if let lastUpdated = viewModel.lastUpdated {
-                        Text("Updated \(lastUpdated.relativeTime())")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                } else {
-                    // Climate View
-                    ClimateView(stats: viewModel.climateStats, preferences: preferences)
+        VStack(spacing: 0) {
+            Picker("Mode", selection: $selectedTab) {
+                ForEach(DetailViewMode.allCases) { mode in
+                    Text(mode.rawValue).tag(mode)
                 }
             }
-            .padding(.vertical)
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+            .background(Color(.systemBackground))
+
+            Divider()
+
+            if selectedTab == .map {
+                WeatherMapView(location: location)
+            } else {
+                ScrollView {
+                    VStack(spacing: 24) {
+                        if selectedTab == .forecast {
+                            // Hero Section
+                            if let weather = viewModel.currentWeather {
+                                WeatherHeroSection(weather: weather, preferences: preferences)
+                            }
+
+                            // Best Time to Be Outside
+                            if !viewModel.hourlyForecast.isEmpty {
+                                BestTimeOutsideView(
+                                    hourlyForecast: viewModel.hourlyForecast,
+                                    preferences: preferences,
+                                    airQualityIndex: viewModel.currentWeather?.airQualityIndex
+                                )
+                            }
+
+                            // Hourly Forecast
+                            if !viewModel.hourlyForecast.isEmpty {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("Today's Forecast")
+                                        .font(.headline)
+                                        .padding(.horizontal)
+
+                                    ScrollView(.horizontal, showsIndicators: false) {
+                                        HStack(spacing: 16) {
+                                            ForEach(viewModel.hourlyForecast) { forecast in
+                                                HourlyForecastCard(forecast: forecast, preferences: preferences)
+                                            }
+                                        }
+                                        .padding(.horizontal)
+                                    }
+                                }
+                            }
+
+                            // Precipitation Chart
+                            if !viewModel.hourlyForecast.isEmpty {
+                                PrecipitationChartView(hourlyForecast: viewModel.hourlyForecast, preferences: preferences)
+                            }
+
+                            // 7-Day Forecast
+                            if !viewModel.dailyForecast.isEmpty {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("7-Day Forecast")
+                                        .font(.headline)
+                                        .padding(.horizontal)
+
+                                    ForEach(viewModel.dailyForecast) { forecast in
+                                        DailyForecastCard(forecast: forecast, preferences: preferences)
+                                    }
+                                }
+                            }
+
+                            // Historical Context
+                            if let statistics = viewModel.dayTemperatureStatistics {
+                                HistoricalComparisonsView(statistics: statistics, preferences: preferences)
+                            } else {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("Historical Context")
+                                        .font(.headline)
+                                        .padding(.horizontal)
+
+                                    Text("Historical data unavailable.")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                        .padding()
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .padding(.vertical)
+                                .background(Color(.systemBackground))
+                                .cornerRadius(12)
+                                .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
+                                .padding(.horizontal)
+                            }
+
+                            // Weather Details
+                            if let weather = viewModel.currentWeather {
+                                WeatherDetailsSection(
+                                    weather: weather,
+                                    preferences: preferences,
+                                    moonPhase: viewModel.dailyForecast.first?.moonPhase,
+                                    moonPhaseSymbol: viewModel.dailyForecast.first?.moonPhaseSymbol
+                                )
+                            }
+
+                            // Last Updated
+                            if let lastUpdated = viewModel.lastUpdated {
+                                Text("Updated \(lastUpdated.relativeTime())")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } else {
+                            // Climate View
+                            ClimateView(stats: viewModel.climateStats, preferences: preferences)
+                        }
+                    }
+                    .padding(.vertical)
+                }
+                .refreshable {
+                    await viewModel.fetchWeatherData(for: location)
+                }
+            }
         }
         .navigationTitle(location.name)
         .navigationBarTitleDisplayMode(.inline)
-        .refreshable {
-            await viewModel.fetchWeatherData(for: location)
-        }
         .task {
             await viewModel.fetchWeatherData(for: location)
         }

@@ -29,9 +29,22 @@
 		160983F22F01E5E6008810B6 /* TempestasUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TempestasUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		16F52DCD2F830941004D78DE /* Exceptions for "Tempestas" folder in "Tempestas" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 160983D82F01E5E5008810B6 /* Tempestas */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		160983DB2F01E5E5008810B6 /* Tempestas */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				16F52DCD2F830941004D78DE /* Exceptions for "Tempestas" folder in "Tempestas" target */,
+			);
 			path = Tempestas;
 			sourceTree = "<group>";
 		};
@@ -401,7 +414,9 @@
 				DEVELOPMENT_TEAM = 36H8T2F3VH;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Tempestas/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Tempestas;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.weather";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Tempestas needs your location to show accurate weather for where you are. Your location is never shared and stays private.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -413,7 +428,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.22;
+				MARKETING_VERSION = 1.24;
 				PRODUCT_BUNDLE_IDENTIFIER = com.manicmutt.TempestasWeather;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -437,7 +452,9 @@
 				DEVELOPMENT_TEAM = 36H8T2F3VH;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Tempestas/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Tempestas;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.weather";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Tempestas needs your location to show accurate weather for where you are. Your location is never shared and stays private.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -449,7 +466,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.22;
+				MARKETING_VERSION = 1.24;
 				PRODUCT_BUNDLE_IDENTIFIER = com.manicmutt.TempestasWeather;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
