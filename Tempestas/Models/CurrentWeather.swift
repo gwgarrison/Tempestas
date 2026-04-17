@@ -12,8 +12,8 @@ struct CurrentWeather: Codable {
     let feelsLike: Double
     let condition: String
     let conditionCode: String
-    let highTemp: Double
-    let lowTemp: Double
+    var highTemp: Double
+    var lowTemp: Double
     let humidity: Int
     let windSpeed: Double
     let windDirection: Int

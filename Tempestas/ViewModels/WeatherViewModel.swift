@@ -141,7 +141,17 @@ class WeatherViewModel: ObservableObject {
             print("✅ Got \(hourly.count) hourly forecasts")
             hourlyForecast = hourly
             cacheService.cache(hourly, forKey: "hourly_\(locationKey)", duration: CacheService.CacheDuration.hourlyForecast)
-            
+
+            if var updated = currentWeather {
+                let todayHourly = hourly.filter { Calendar.current.isDateInToday($0.time) }
+                if !todayHourly.isEmpty {
+                    updated.highTemp = todayHourly.map { $0.temperature }.max() ?? updated.highTemp
+                    updated.lowTemp = todayHourly.map { $0.temperature }.min() ?? updated.lowTemp
+                    currentWeather = updated
+                    cacheService.cache(updated, forKey: "current_\(locationKey)", duration: CacheService.CacheDuration.currentWeather)
+                }
+            }
+
             print("🌐 Fetching daily forecast...")
             let daily = try await weatherService.fetchDailyForecast(for: location)
             print("✅ Got \(daily.count) daily forecasts")
